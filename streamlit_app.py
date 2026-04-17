@@ -7,8 +7,7 @@ import pandas as pd
 # ----------------------------------------
 st.set_page_config(page_title="AI Real Estate Agent", page_icon="🏡", layout="wide")
 
-API_URL = "https://ai-real-estate-agent.up.railway.app/predict"
-# ----------------------------------------
+API_URL = "https://ai-real-estate-app-production.up.railway.app/predict"# ----------------------------------------
 # Title
 # ----------------------------------------
 st.title("🏡 AI Real Estate Agent")
