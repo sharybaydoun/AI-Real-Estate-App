@@ -1,0 +1,18 @@
+{
+  "Gr Liv Area": { "type": "number" },
+  "Overall Qual": { "type": "number" },
+  "Year Built": { "type": "number" },
+  "Total Bsmt SF": { "type": "number" },
+  "Garage Cars": { "type": "number" },
+  "Full Bath": { "type": "number" },
+  "Bedroom AbvGr": { "type": "number" },
+  "Neighborhood": {
+    "type": "string",
+    "allowed_values": ["NAmes", "CollgCr", "OldTown", "Edwards"]
+  },
+  "House Style": {
+    "type": "string",
+    "allowed_values": ["1Story", "2Story", "1.5Fin", "SLvl"]
+  },
+  "Lot Area": { "type": "number" }
+}
