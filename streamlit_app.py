@@ -11,8 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
-API_URL = "http://localhost:8000/predict"
-
+API_URL = "https://ai-real-estate-app-production.up.railway.app/predict"
 # ----------------------------------------
 # Title
 # ----------------------------------------
