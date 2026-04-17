@@ -1,6 +1,4 @@
 from fastapi import FastAPI
-from app.llm import stage1_extract, stage2_interpret
-from app.model import predict
 from app.schemas import QueryRequest, PredictionResponse
 
 app = FastAPI(title="AI Real Estate Agent API")
@@ -13,6 +11,8 @@ def root():
 
 @app.post("/predict", response_model=PredictionResponse)
 def run_pipeline(payload: QueryRequest):
+    from app.llm import stage1_extract, stage2_interpret
+    from app.model import predict
     query = payload.query
 
     # use v2 as default winner for now
