@@ -15,7 +15,7 @@ def run_pipeline(payload: QueryRequest):
     from app.model import predict
 
     query = payload.query
-    manual_features = getattr(payload, "manual_features", None)
+    manual_features = payload.manual_features
 
     # ----------------------------------------
     # CASE 1 → MANUAL INPUT
@@ -24,7 +24,7 @@ def run_pipeline(payload: QueryRequest):
         features = {}
 
         for k, v in manual_features.items():
-            if v in [None, "", 0]:
+            if v is None or v == "":
                 features[k] = None
             else:
                 features[k] = v
@@ -47,7 +47,7 @@ def run_pipeline(payload: QueryRequest):
         prompt_version = stage1["prompt_version"]
 
     # ----------------------------------------
-    # STILL MISSING → RETURN TO UI
+    # STILL MISSING → RETURN
     # ----------------------------------------
     if not ready_for_prediction:
         return {

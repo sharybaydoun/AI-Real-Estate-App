@@ -4,14 +4,7 @@ from typing import Dict, Any, List, Optional
 
 class QueryRequest(BaseModel):
     query: str = Field(..., min_length=3)
-
-
-class FeatureExtractionResponse(BaseModel):
-    features: Dict[str, Any]
-    confident_fields: List[str]
-    missing_fields: List[str]
-    ready_for_prediction: bool
-    prompt_version: str
+    manual_features: Optional[Dict[str, Any]] = None
 
 
 class PredictionResponse(BaseModel):

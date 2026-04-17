@@ -1,13 +1,14 @@
 import streamlit as st
 import requests
-import pandas as pd
 
 # ----------------------------------------
 # Config
 # ----------------------------------------
 st.set_page_config(page_title="AI Real Estate Agent", page_icon="🏡", layout="wide")
 
-API_URL = "https://ai-real-estate-app-production.up.railway.app/predict"# ----------------------------------------
+API_URL = "https://ai-real-estate-app-production.up.railway.app/predict"
+
+# ----------------------------------------
 # Title
 # ----------------------------------------
 st.title("🏡 AI Real Estate Agent")
@@ -22,23 +23,22 @@ query = st.text_area(
 )
 
 # ----------------------------------------
-# Analyze button
+# Analyze
 # ----------------------------------------
 if st.button("🚀 Analyze"):
-    with st.spinner("Analyzing..."):
-        try:
-            res = requests.post(API_URL, json={"query": query})
+    try:
+        res = requests.post(API_URL, json={"query": query})
 
-            if res.status_code == 200:
-                st.session_state.data = res.json()
-            else:
-                st.error(res.text)
+        if res.status_code == 200:
+            st.session_state.data = res.json()
+        else:
+            st.error(res.text)
 
-        except Exception as e:
-            st.error(f"API error: {e}")
+    except Exception as e:
+        st.error(f"API error: {e}")
 
 # ----------------------------------------
-# Display results
+# Display
 # ----------------------------------------
 if "data" in st.session_state:
     data = st.session_state.data
@@ -47,7 +47,7 @@ if "data" in st.session_state:
     col1, col2 = st.columns(2)
 
     # ----------------------------------------
-    # LEFT → FEATURES
+    # LEFT
     # ----------------------------------------
     with col1:
         st.subheader("📊 Property Details")
@@ -67,7 +67,6 @@ if "data" in st.session_state:
 
         features = data["extracted_features"]
 
-        # CLEAN DISPLAY
         for key, value in features.items():
             label = rename_map.get(key, key)
 
@@ -77,7 +76,7 @@ if "data" in st.session_state:
                 st.markdown(f"✅ **{label}**: {value}")
 
         # ----------------------------------------
-        # FORM FOR MISSING
+        # Missing form
         # ----------------------------------------
         if data["missing_fields"]:
             st.divider()
@@ -103,8 +102,8 @@ if "data" in st.session_state:
                 else:
                     user_inputs[field] = st.number_input(
                         label,
-                        min_value=1.0,
-                        step=1.0
+                        min_value=0.0,
+                        step=50.0
                     )
 
             if st.button("💰 Get Price"):
@@ -113,40 +112,31 @@ if "data" in st.session_state:
                 for k, v in user_inputs.items():
                     completed[k] = v
 
-                res = requests.post(API_URL, json={
-                    "query": query,
-                    "manual_features": completed
-                })
+                try:
+                    res = requests.post(API_URL, json={
+                        "query": query,
+                        "manual_features": completed
+                    })
 
-                if res.status_code == 200:
-                    st.session_state.data = res.json()
-                    st.rerun()
-                else:
-                    st.error(res.text)
+                    if res.status_code == 200:
+                        st.session_state.data = res.json()
+                        st.rerun()
+                    else:
+                        st.error(res.text)
+
+                except Exception as e:
+                    st.error(f"Error: {e}")
 
     # ----------------------------------------
-    # RIGHT → RESULT
+    # RIGHT
     # ----------------------------------------
     with col2:
         if data["ready_for_prediction"]:
             st.subheader("💰 Estimated Price")
-
             st.metric("Price", f"${data['predicted_price']:,.0f}")
 
             st.subheader("🧠 Explanation")
-
-            st.markdown(f"""
-            <div style="
-                background-color:#1e3a5f;
-                padding:18px;
-                border-radius:12px;
-                color:white;
-                font-size:16px;
-                line-height:1.6;
-            ">
-            {data["interpretation"]}
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(data["interpretation"])
 
         else:
             st.info("Fill missing details to get prediction.")
