@@ -15,22 +15,28 @@ def run_pipeline(payload: QueryRequest):
     from app.model import predict
 
     query = payload.query
-
-    # ----------------------------------------
-    # CASE 1: User manually filled missing fields (from UI form)
-    # ----------------------------------------
     manual_features = getattr(payload, "manual_features", None)
 
+    # ----------------------------------------
+    # CASE 1 → MANUAL INPUT
+    # ----------------------------------------
     if manual_features:
-        features = manual_features
-        ready_for_prediction = True
-        missing_fields = []
-        confident_fields = list(features.keys())
+        features = {}
+
+        for k, v in manual_features.items():
+            if v in [None, "", 0]:
+                features[k] = None
+            else:
+                features[k] = v
+
+        missing_fields = [k for k, v in features.items() if v is None]
+        ready_for_prediction = len(missing_fields) == 0
+        confident_fields = [k for k, v in features.items() if v is not None]
         prompt_version = "manual"
 
     else:
         # ----------------------------------------
-        # CASE 2: Normal LLM extraction
+        # CASE 2 → LLM
         # ----------------------------------------
         stage1 = stage1_extract(query, version="v2")
 
@@ -41,7 +47,7 @@ def run_pipeline(payload: QueryRequest):
         prompt_version = stage1["prompt_version"]
 
     # ----------------------------------------
-    # If still missing → return to UI (form will appear)
+    # STILL MISSING → RETURN TO UI
     # ----------------------------------------
     if not ready_for_prediction:
         return {
@@ -51,12 +57,12 @@ def run_pipeline(payload: QueryRequest):
             "ready_for_prediction": False,
             "predicted_price": None,
             "interpretation": "",
-            "message": "Please complete missing fields in the form.",
+            "message": "Fill missing fields",
             "prompt_version": prompt_version,
         }
 
     # ----------------------------------------
-    # Run prediction
+    # PREDICTION
     # ----------------------------------------
     try:
         price = predict(features)
@@ -68,18 +74,15 @@ def run_pipeline(payload: QueryRequest):
             "ready_for_prediction": False,
             "predicted_price": None,
             "interpretation": "",
-            "message": f"Prediction error: {str(e)}",
+            "message": str(e),
             "prompt_version": prompt_version,
         }
 
     # ----------------------------------------
-    # Stage 2 explanation
+    # INTERPRETATION
     # ----------------------------------------
     explanation = stage2_interpret(features, price)
 
-    # ----------------------------------------
-    # Final response
-    # ----------------------------------------
     return {
         "extracted_features": features,
         "confident_fields": confident_fields,
