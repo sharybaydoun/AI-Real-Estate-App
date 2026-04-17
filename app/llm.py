@@ -145,10 +145,9 @@ User query:
 # ----------------------------------------
 def _build_prompt_v2(query: str) -> str:
     return f"""
-You are a careful extraction engine for an AI real estate agent.
+You are an intelligent real estate extraction engine.
 
-Task:
-Extract only the property details that are explicitly present in the user query.
+Extract property features from the user query.
 
 Return ONLY valid JSON:
 {{
@@ -167,19 +166,23 @@ Return ONLY valid JSON:
 }}
 
 Rules:
-- Do not invent values
-- Do not assume missing data
-- If unclear → return null
-- Return numbers as numbers
-- Return JSON only
+- If a range is given (e.g. 1800–2200 sqft) → take the AVERAGE
+- If multiple options (e.g. 3 or 4 bedrooms) → take the LOWER value
+- If vague quality ("good", "nice", "modern") → map to:
+    good → 6
+    very good → 7
+    excellent → 8+
+- If "after 2000" → use 2000
+- If garage mentioned → Garage Cars = 2
+- If basement not mentioned → leave null
+- If neighborhood is vague → leave null
+- Do NOT leave obvious values as null
 
-Valid Neighborhood values: {SCHEMA["Neighborhood"]["allowed_values"]}
-Valid House Style values: {SCHEMA["House Style"]["allowed_values"]}
+Return JSON only.
 
 User query:
 {query}
 """
-
 
 # ----------------------------------------
 # Call LLM
