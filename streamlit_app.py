@@ -4,7 +4,11 @@ import requests
 # ----------------------------------------
 # Config
 # ----------------------------------------
-st.set_page_config(page_title="AI Real Estate Agent", page_icon="🏡", layout="wide")
+st.set_page_config(
+    page_title="AI Real Estate Agent",
+    page_icon="🏡",
+    layout="wide"
+)
 
 API_URL = "https://ai-real-estate-app-production.up.railway.app/predict"
 
@@ -25,7 +29,7 @@ query = st.text_area(
 # ----------------------------------------
 # Analyze
 # ----------------------------------------
-if st.button("🚀 Analyze"):
+if st.button("🚀 Analyze Property"):
     try:
         res = requests.post(API_URL, json={"query": query})
 
@@ -47,7 +51,7 @@ if "data" in st.session_state:
     col1, col2 = st.columns(2)
 
     # ----------------------------------------
-    # LEFT
+    # LEFT PANEL
     # ----------------------------------------
     with col1:
         st.subheader("📊 Property Details")
@@ -56,13 +60,13 @@ if "data" in st.session_state:
             "Gr Liv Area": "Living Area (sqft)",
             "Overall Qual": "Quality (1–10)",
             "Year Built": "Year Built",
-            "Total Bsmt SF": "Basement Size",
-            "Garage Cars": "Garage",
+            "Total Bsmt SF": "Basement Size (sqft)",
+            "Garage Cars": "Garage (cars)",
             "Full Bath": "Bathrooms",
             "Bedroom AbvGr": "Bedrooms",
             "Neighborhood": "Neighborhood",
             "House Style": "House Style",
-            "Lot Area": "Lot Size"
+            "Lot Area": "Lot Size (sqft)"
         }
 
         features = data["extracted_features"]
@@ -76,11 +80,12 @@ if "data" in st.session_state:
                 st.markdown(f"✅ **{label}**: {value}")
 
         # ----------------------------------------
-        # Missing form
+        # Missing Inputs Form
         # ----------------------------------------
         if data["missing_fields"]:
             st.divider()
-            st.warning("Please complete missing details")
+            st.markdown("### ✏️ Complete Missing Information")
+            st.warning("Some important details are missing. Please fill them below.")
 
             user_inputs = {}
 
@@ -99,11 +104,65 @@ if "data" in st.session_state:
                         ["1Story", "2Story", "1.5Fin"]
                     )
 
+                elif field == "Bedroom AbvGr":
+                    user_inputs[field] = st.number_input(
+                        label,
+                        min_value=0,
+                        max_value=10,
+                        step=1
+                    )
+
+                elif field == "Full Bath":
+                    user_inputs[field] = st.number_input(
+                        label,
+                        min_value=0,
+                        max_value=5,
+                        step=1
+                    )
+
+                elif field == "Garage Cars":
+                    user_inputs[field] = st.number_input(
+                        label,
+                        min_value=0,
+                        max_value=5,
+                        step=1
+                    )
+
+                elif field == "Year Built":
+                    user_inputs[field] = st.number_input(
+                        label,
+                        min_value=1900,
+                        max_value=2025,
+                        step=1
+                    )
+
+                elif field == "Overall Qual":
+                    user_inputs[field] = st.slider(
+                        label,
+                        min_value=1,
+                        max_value=10,
+                        value=5
+                    )
+
+                elif field in ["Gr Liv Area", "Total Bsmt SF"]:
+                    user_inputs[field] = st.number_input(
+                        label,
+                        min_value=0,
+                        step=100
+                    )
+
+                elif field == "Lot Area":
+                    user_inputs[field] = st.number_input(
+                        label,
+                        min_value=0,
+                        step=500
+                    )
+
                 else:
                     user_inputs[field] = st.number_input(
                         label,
                         min_value=0.0,
-                        step=50.0
+                        step=10.0
                     )
 
             if st.button("💰 Get Price"):
@@ -128,7 +187,7 @@ if "data" in st.session_state:
                     st.error(f"Error: {e}")
 
     # ----------------------------------------
-    # RIGHT
+    # RIGHT PANEL
     # ----------------------------------------
     with col2:
         if data["ready_for_prediction"]:
