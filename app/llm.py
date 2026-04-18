@@ -21,7 +21,7 @@ with open("model/stats.json", "r") as f:
     STATS = json.load(f)
 
 # ----------------------------------------
-# Minimum required features
+# NEW: Minimum required features
 # ----------------------------------------
 MIN_REQUIRED_FEATURES = [
     "Gr Liv Area",
@@ -33,29 +33,37 @@ MIN_REQUIRED_FEATURES = [
 # Extract JSON safely
 # ----------------------------------------
 def _extract_json_block(text: str) -> str:
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    return match.group(0) if match else text
+    text = text.strip()
+
+    if "```" in text:
+        match = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.DOTALL)
+        if match:
+            return match.group(1)
+
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        return text[start:end + 1]
+
+    return text
 
 # ----------------------------------------
 # Type validation
 # ----------------------------------------
 def _coerce_value(field: str, value):
     spec = SCHEMA[field]
+    field_type = spec["type"]
 
     if value is None:
         return None
 
-    if spec["type"] == "number":
+    if field_type == "number":
         try:
-            v = float(value)
-            # sanity check
-            if field == "Gr Liv Area" and (v < 300 or v > 10000):
-                return None
-            return v
+            return float(value)
         except:
             return None
 
-    if spec["type"] == "string":
+    if field_type == "string":
         value = str(value).strip()
         allowed = spec.get("allowed_values")
         if allowed and value not in allowed:
@@ -65,45 +73,48 @@ def _coerce_value(field: str, value):
     return None
 
 # ----------------------------------------
-# Validate Stage 1
+# UPDATED VALIDATION
 # ----------------------------------------
-def _validate_stage1_output(raw_features: dict):
-    full = {}
-    confident = []
-    missing = []
+def _validate_stage1_output(raw_features: dict, prompt_version: str):
+    full_features = {}
+    confident_fields = []
+    missing_fields = []
 
-    for f in FEATURES:
-        val = _coerce_value(f, raw_features.get(f))
-        full[f] = val
+    for field in FEATURES:
+        value = raw_features.get(field, None)
+        value = _coerce_value(field, value)
 
-        if val is None:
-            missing.append(f)
+        full_features[field] = value
+
+        if value is None:
+            missing_fields.append(field)
         else:
-            confident.append(f)
+            confident_fields.append(field)
 
-    important_present = [
-        f for f in MIN_REQUIRED_FEATURES if full.get(f) is not None
+    present_important = [
+        f for f in MIN_REQUIRED_FEATURES if full_features.get(f) is not None
     ]
 
-    ready = len(important_present) >= 2
-    confidence = round(len(confident) / len(FEATURES), 2)
+    ready_for_prediction = len(present_important) >= 2
+    confidence_score = round(len(confident_fields) / len(FEATURES), 2)
 
     return {
-        "features": full,
-        "confident_fields": confident,
-        "missing_fields": missing,
-        "ready_for_prediction": ready,
-        "confidence_score": confidence,
+        "features": full_features,
+        "confident_fields": confident_fields,
+        "missing_fields": missing_fields,
+        "ready_for_prediction": ready_for_prediction,
+        "confidence_score": confidence_score,
+        "prompt_version": prompt_version,
     }
 
 # ----------------------------------------
-# Prompt
+# Prompt V2
 # ----------------------------------------
-def _build_prompt(query: str):
+def _build_prompt_v2(query: str) -> str:
     return f"""
-Extract real estate features.
+Extract structured real estate features.
 
-Return JSON:
+Return ONLY JSON:
 {{
   "features": {{
     "Gr Liv Area": null,
@@ -120,10 +131,9 @@ Return JSON:
 }}
 
 Rules:
-- Do NOT guess
-- Use null if missing
-- Living area must be realistic (300–10000 sqft)
-- Do NOT infer quality from words like "nice"
+- Do NOT guess values
+- Do NOT infer quality from words like "nice", "good"
+- Use null if not explicitly stated
 
 User:
 {query}
@@ -133,16 +143,16 @@ User:
 # Call LLM
 # ----------------------------------------
 def _call_llm(prompt: str):
-    res = client.chat.completions.create(
+    response = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=[
-            {"role": "system", "content": "Return JSON only"},
+            {"role": "system", "content": "Return JSON only."},
             {"role": "user", "content": prompt},
         ],
         temperature=0
     )
 
-    content = res.choices[0].message.content
+    content = response.choices[0].message.content.strip()
     return json.loads(_extract_json_block(content))
 
 # ----------------------------------------
@@ -150,55 +160,68 @@ def _call_llm(prompt: str):
 # ----------------------------------------
 def stage1_extract(query: str):
     try:
-        data = _call_llm(_build_prompt(query))
-        return _validate_stage1_output(data.get("features", {}))
-    except:
+        data = _call_llm(_build_prompt_v2(query))
+        return _validate_stage1_output(data.get("features", {}), "v2")
+
+    except Exception:
         return {
             "features": {f: None for f in FEATURES},
             "confident_fields": [],
             "missing_fields": FEATURES,
             "ready_for_prediction": False,
             "confidence_score": 0,
+            "prompt_version": "v2",
         }
 
 # ----------------------------------------
-# Stage 2 (FIXED LLM)
+# Stage 2 (FIXED SPACING)
 # ----------------------------------------
 def stage2_interpret(features: dict, price: float) -> str:
 
     prompt = f"""
-You are a friendly real estate assistant.
+You are a real estate assistant.
 
-Features:
+A house has these features:
 {features}
 
-Price: {price}
+Predicted price: {price}
 
-Market:
-- Typical: {STATS["typical_low"]} to {STATS["typical_high"]}
+Market stats:
+- Typical low: {STATS["typical_low"]}
+- Typical high: {STATS["typical_high"]}
 - Median: {STATS["median_price"]}
 
-Instructions:
-- Write 2 to 3 short paragraphs
-- Use clear spacing
-- Keep sentences readable
-- Mention 2–3 key features
-- If missing info exists, mention it
+Explain clearly:
+- Is price low, normal, or high
+- Why (based on features)
+- Mention missing features if any
 
-No JSON.
+Formatting rules:
+- Use proper spacing between words
+- Use correct punctuation
+- Always add a space after each period
+- Do NOT merge words
+
+Return plain text only.
 """
 
     try:
-        res = client.chat.completions.create(
+        response = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
-                {"role": "system", "content": "Explain simply."},
+                {"role": "system", "content": "Explain house price clearly."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.6   # ✅ FIXED
+            temperature=0.5
         )
 
-        return res.choices[0].message.content.strip()
+        text = response.choices[0].message.content.strip()
 
-    except:
-        return "Explanation unavailable."
+        # ✅ FIX spacing issues
+        text = re.sub(r'(?<!\s)([.,])(?=\S)', r'\1 ', text)
+        text = re.sub(r'\s+', ' ', text)
+
+        return text
+
+    except Exception:
+        return f"The estimated price is ${price:,.0f}."
