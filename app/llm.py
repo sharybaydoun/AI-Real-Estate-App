@@ -179,11 +179,42 @@ def stage1_extract(query: str):
 # Stage 2
 # ----------------------------------------
 def stage2_interpret(features: dict, price: float) -> str:
-    if price < STATS["typical_low"]:
-        category = "below the typical market range"
-    elif price > STATS["typical_high"]:
-        category = "above the typical market range"
-    else:
-        category = "within the typical market range"
 
-    return f"The estimated price is ${price:,.0f}, which is {category}. It is mainly influenced by size, quality, and year built."
+    prompt = f"""
+You are a real estate assistant.
+
+A house has these features:
+{features}
+
+Predicted price: {price}
+
+Market stats:
+- Typical low: {STATS["typical_low"]}
+- Typical high: {STATS["typical_high"]}
+- Median: {STATS["median_price"]}
+
+Explain clearly:
+- Is price low, normal, or high
+- Why (based on features)
+- Mention missing features if any
+
+Rules:
+- No JSON
+- Natural explanation
+- 3–5 sentences
+"""
+
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {"role": "system", "content": "Explain house price clearly."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.5
+        )
+
+        return response.choices[0].message.content.strip()
+
+    except Exception:
+        return f"The estimated price is ${price:,.0f}."

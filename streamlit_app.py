@@ -31,23 +31,23 @@ rename_map = {
 important_fields = ["Gr Liv Area", "Overall Qual", "Year Built"]
 
 
-def pretty_label(field_name: str) -> str:
+def pretty_label(field_name: str):
     return rename_map.get(field_name, field_name)
 
 
-def field_is_important(field_name: str) -> bool:
+def field_is_important(field_name: str):
     return field_name in important_fields
 
 
 # ----------------------------------------
-# Title / Intro
+# Title
 # ----------------------------------------
 st.title("🏡 AI Real Estate Agent")
-st.write("Describe a house in plain English and get a price estimate with a simple explanation.")
+st.write("Describe a house and get a smart price estimate.")
 
 st.info(
-    "For the best estimate, try to include at least living area, quality, and year built. "
-    "If some details are missing, the app can still try to predict when enough key information is available."
+    "For best results include: Living Area, Quality, and Year Built.\n"
+    "The app can still predict if enough key info is available."
 )
 
 # ----------------------------------------
@@ -55,7 +55,7 @@ st.info(
 # ----------------------------------------
 query = st.text_area(
     "Describe the property",
-    placeholder="Example: 3-bedroom house, 2000 sqft, built in 2010, with garage, in NAmes",
+    placeholder="Example: 3-bedroom house, 2000 sqft, built in 2010, with garage",
     height=130
 )
 
@@ -64,17 +64,14 @@ query = st.text_area(
 # ----------------------------------------
 if st.button("🚀 Analyze Property", use_container_width=True):
     if not query.strip():
-        st.warning("Please enter a property description first.")
+        st.warning("Please enter a description.")
     else:
         try:
-            with st.spinner("Analyzing property details..."):
-                res = requests.post(API_URL, json={"query": query}, timeout=60)
-
+            res = requests.post(API_URL, json={"query": query})
             if res.status_code == 200:
                 st.session_state.data = res.json()
             else:
                 st.error(res.text)
-
         except Exception as e:
             st.error(f"API error: {e}")
 
@@ -86,158 +83,150 @@ if "data" in st.session_state:
     features = data.get("extracted_features", {})
     missing_fields = data.get("missing_fields", [])
     ready = data.get("ready_for_prediction", False)
-    confidence_score = data.get("confidence_score", 0.0) or 0.0
+    confidence_score = data.get("confidence_score", 0.0)
 
     st.divider()
-
     col1, col2 = st.columns([1.1, 0.9])
 
     # ----------------------------------------
     # LEFT PANEL
     # ----------------------------------------
     with col1:
-        st.subheader("📊 Extracted Property Details")
+        st.subheader("📊 Extracted Details")
 
-        if not features:
-            st.warning("No property details were extracted.")
-        else:
-            for key, value in features.items():
-                label = pretty_label(key)
-                badge = "⭐ " if field_is_important(key) else ""
+        for key, value in features.items():
+            label = pretty_label(key)
+            badge = "⭐ " if field_is_important(key) else ""
 
-                if value is None:
-                    st.markdown(f"❌ **{badge}{label}**: Not provided")
-                else:
-                    st.markdown(f"✅ **{badge}{label}**: {value}")
+            if value is None:
+                st.markdown(f"❌ **{badge}{label}**: Not provided")
+            else:
+                st.markdown(f"✅ **{badge}{label}**: {value}")
 
         # ----------------------------------------
-        # Missing Inputs Form
+        # Missing Inputs
         # ----------------------------------------
         if missing_fields:
             st.divider()
-            st.markdown("### ✏️ Add More Details")
-
-            important_missing = [f for f in missing_fields if f in important_fields]
-            other_missing = [f for f in missing_fields if f not in important_fields]
-
-            if important_missing:
-                st.warning(
-                    "Some key details are missing: "
-                    + ", ".join(pretty_label(f) for f in important_missing)
-                )
-            elif ready:
-                st.info(
-                    "A prediction is available, but adding the remaining details may improve the estimate."
-                )
-            else:
-                st.info("You can complete the remaining details below.")
+            st.subheader("✏️ Add Missing Details")
 
             user_inputs = {}
 
             for field in missing_fields:
                 label = pretty_label(field)
 
+                # ----------------------------
+                # CATEGORICAL
+                # ----------------------------
                 if field == "Neighborhood":
-                    user_inputs[field] = st.selectbox(
+                    val = st.selectbox(
                         label,
-                        ["NAmes", "CollgCr", "OldTown", "Edwards", "Somerst"],
+                        ["", "NAmes", "CollgCr", "OldTown", "Edwards", "Somerst"],
                         key=f"input_{field}"
                     )
+                    user_inputs[field] = val if val != "" else None
 
                 elif field == "House Style":
-                    user_inputs[field] = st.selectbox(
+                    val = st.selectbox(
                         label,
-                        ["1Story", "2Story", "1.5Fin"],
+                        ["", "1Story", "2Story", "1.5Fin"],
                         key=f"input_{field}"
                     )
+                    user_inputs[field] = val if val != "" else None
 
-                elif field == "Bedroom AbvGr":
-                    user_inputs[field] = st.number_input(
-                        label,
-                        min_value=0,
-                        max_value=10,
-                        step=1,
-                        key=f"input_{field}"
-                    )
-
-                elif field == "Full Bath":
-                    user_inputs[field] = st.number_input(
+                # ----------------------------
+                # INTEGER FIELDS
+                # ----------------------------
+                elif field in ["Bedroom AbvGr", "Full Bath", "Garage Cars"]:
+                    val = st.number_input(
                         label,
                         min_value=0,
-                        max_value=5,
                         step=1,
+                        value=None,
+                        placeholder="Enter value",
                         key=f"input_{field}"
                     )
+                    user_inputs[field] = val
 
-                elif field == "Garage Cars":
-                    user_inputs[field] = st.number_input(
-                        label,
-                        min_value=0,
-                        max_value=5,
-                        step=1,
-                        key=f"input_{field}"
-                    )
-
+                # ----------------------------
+                # YEAR
+                # ----------------------------
                 elif field == "Year Built":
-                    user_inputs[field] = st.number_input(
+                    val = st.number_input(
                         label,
                         min_value=1900,
                         max_value=2025,
                         step=1,
+                        value=None,
+                        placeholder="Enter year",
                         key=f"input_{field}"
                     )
+                    user_inputs[field] = val
 
+                # ----------------------------
+                # QUALITY
+                # ----------------------------
                 elif field == "Overall Qual":
-                    user_inputs[field] = st.slider(
+                    val = st.slider(
                         label,
                         min_value=1,
                         max_value=10,
                         value=5,
                         key=f"input_{field}"
                     )
+                    user_inputs[field] = val
 
+                # ----------------------------
+                # CONTINUOUS
+                # ----------------------------
                 elif field in ["Gr Liv Area", "Total Bsmt SF"]:
-                    user_inputs[field] = st.number_input(
+                    val = st.number_input(
                         label,
                         min_value=0,
                         step=100,
+                        value=None,
+                        placeholder="Enter sqft",
                         key=f"input_{field}"
                     )
+                    user_inputs[field] = val
 
                 elif field == "Lot Area":
-                    user_inputs[field] = st.number_input(
+                    val = st.number_input(
                         label,
                         min_value=0,
                         step=500,
+                        value=None,
+                        placeholder="Enter lot size",
                         key=f"input_{field}"
                     )
+                    user_inputs[field] = val
 
                 else:
-                    user_inputs[field] = st.number_input(
+                    val = st.number_input(
                         label,
-                        min_value=0.0,
-                        step=10.0,
+                        value=None,
                         key=f"input_{field}"
                     )
+                    user_inputs[field] = val
 
-            button_text = "🔄 Update Prediction" if ready else "💰 Get Price"
-
-            if st.button(button_text, use_container_width=True):
+            # ----------------------------------------
+            # BUTTON
+            # ----------------------------------------
+            if st.button("💰 Get / Update Price", use_container_width=True):
                 completed = features.copy()
 
                 for k, v in user_inputs.items():
-                    completed[k] = v
+                    if v is not None:
+                        completed[k] = v
 
                 try:
-                    with st.spinner("Updating prediction..."):
-                        res = requests.post(
-                            API_URL,
-                            json={
-                                "query": query,
-                                "manual_features": completed
-                            },
-                            timeout=60
-                        )
+                    res = requests.post(
+                        API_URL,
+                        json={
+                            "query": query,
+                            "manual_features": completed
+                        }
+                    )
 
                     if res.status_code == 200:
                         st.session_state.data = res.json()
@@ -252,50 +241,18 @@ if "data" in st.session_state:
     # RIGHT PANEL
     # ----------------------------------------
     with col2:
-        st.subheader("📈 Prediction Summary")
+        st.subheader("📈 Prediction")
 
-        confidence_percent = int(confidence_score * 100)
-
-        st.markdown("**Extraction Confidence**")
         st.progress(confidence_score)
-        st.caption(f"{confidence_percent}% of tracked fields are currently available")
-
-        present_important = [
-            f for f in important_fields if features.get(f) is not None
-        ]
-
-        st.markdown("**Key Inputs Status**")
-        for f in important_fields:
-            if f in present_important:
-                st.markdown(f"✅ {pretty_label(f)}")
-            else:
-                st.markdown(f"❌ {pretty_label(f)}")
+        st.caption(f"{int(confidence_score*100)}% data completeness")
 
         st.divider()
 
         if ready:
-            st.subheader("💰 Estimated Price")
-            st.metric("Price", f"${data['predicted_price']:,.0f}")
-
-            if missing_fields:
-                st.warning(
-                    "This estimate was generated using the available information. "
-                    "Adding more details may improve accuracy."
-                )
-            else:
-                st.success("All tracked details are available for this estimate.")
+            st.metric("💰 Price", f"${data['predicted_price']:,.0f}")
 
             st.subheader("🧠 Explanation")
             st.markdown(data["interpretation"])
 
-            if data.get("message"):
-                st.caption(data["message"])
-
         else:
-            st.info(
-                "Not enough key information to generate a prediction yet. "
-                "Please provide at least two of these: living area, quality, year built."
-            )
-
-            if data.get("message"):
-                st.caption(data["message"])
+            st.info("Not enough key info to predict yet.")
