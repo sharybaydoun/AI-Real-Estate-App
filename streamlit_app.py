@@ -156,10 +156,10 @@ if "data" in st.session_state:
                         min_value=1900,
                         max_value=2025,
                         step=1,
-                        value=0,
+                        value=1900,
                         key=f"input_{field}"
                     )
-                    user_inputs[field] = val if val != 0 else None
+                    user_inputs[field] = val if val != 1900 else None
 
                 # ----------------------------
                 # QUALITY
